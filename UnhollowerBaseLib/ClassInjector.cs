@@ -445,18 +445,19 @@ namespace UnhollowerRuntimeLib
 
         private static void HookClassFromType()
         {
-            var lib = LoadLibrary("GameAssembly.dll");
-            var classFromTypeEntryPoint = GetProcAddress(lib, nameof(IL2CPP.il2cpp_class_from_il2cpp_type));
-            LogSupport.Trace($"il2cpp_class_from_il2cpp_type entry address: {classFromTypeEntryPoint}");
-
-            var targetMethod = XrefScannerLowLevel.JumpTargets(classFromTypeEntryPoint).Single();
-            LogSupport.Trace($"Xref scan target: {targetMethod}");
-
-            if (targetMethod == IntPtr.Zero)
-                return;
-
-            ourOriginalTypeToClassMethod = Detour.Detour(targetMethod, new TypeToClassDelegate(ClassFromTypePatch));
-            LogSupport.Trace("il2cpp_class_from_il2cpp_type patched");
+            // TODO: PORT
+            // var lib = LoadLibrary("GameAssembly.dll");
+            // var classFromTypeEntryPoint = GetProcAddress(lib, nameof(IL2CPP.il2cpp_class_from_il2cpp_type));
+            // LogSupport.Trace($"il2cpp_class_from_il2cpp_type entry address: {classFromTypeEntryPoint}");
+            //
+            // var targetMethod = XrefScannerLowLevel.JumpTargets(classFromTypeEntryPoint).Single();
+            // LogSupport.Trace($"Xref scan target: {targetMethod}");
+            //
+            // if (targetMethod == IntPtr.Zero)
+            //     return;
+            //
+            // ourOriginalTypeToClassMethod = Detour.Detour(targetMethod, new TypeToClassDelegate(ClassFromTypePatch));
+            // LogSupport.Trace("il2cpp_class_from_il2cpp_type patched");
         }
 
         
@@ -482,11 +483,11 @@ namespace UnhollowerRuntimeLib
             return ourOriginalTypeToClassMethod(type);
         }
 
-        [DllImport("kernel32", CharSet=CharSet.Ansi, ExactSpelling=true, SetLastError=true)]
-        static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-        
-        [DllImport("kernel32", SetLastError=true, CharSet = CharSet.Ansi)]
-        static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)]string lpFileName);
+        // [DllImport("kernel32", CharSet=CharSet.Ansi, ExactSpelling=true, SetLastError=true)]
+        // static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+        //
+        // [DllImport("kernel32", SetLastError=true, CharSet = CharSet.Ansi)]
+        // static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)]string lpFileName);
         
         private class DoHookDetour : IManagedDetour
         {
