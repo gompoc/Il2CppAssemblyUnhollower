@@ -1,3 +1,5 @@
+# This fork is to simplify the melon loader intergration process
+
 # Il2CppAssemblyUnhollower
 A tool to generate Managed->IL2CPP proxy assemblies from
  [Il2CppDumper](https://github.com/Perfare/Il2CppDumper )'s output.
