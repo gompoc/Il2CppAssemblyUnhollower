@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -8,7 +8,9 @@ using AssemblyUnhollower.Contexts;
 using AssemblyUnhollower.Passes;
 using UnhollowerBaseLib;
 using UnhollowerRuntimeLib;
+#if !USE_CAPSTONE
 using Decoder = Iced.Intel.Decoder;
+#endif 
 
 namespace AssemblyUnhollower
 {

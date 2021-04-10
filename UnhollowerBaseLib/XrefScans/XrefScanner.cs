@@ -80,7 +80,7 @@ namespace UnhollowerRuntimeLib.XrefScans
         internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false) {
             XrefScanImplNativeRes nativeRes = new XrefScanImplNativeRes();
             XrefScanImplNative(decoder, skipClassCheck, ref nativeRes);
-            yield return new XrefInstance((XrefType)nativeRes.type, (IntPtr)nativeRes.target, (IntPtr)nativeRes.codeStart)
+            yield return new XrefInstance((XrefType)nativeRes.type, (IntPtr)nativeRes.target, (IntPtr)nativeRes.codeStart);
         }
 
         [MethodImpl(MethodImplOptions.InternalCall)]

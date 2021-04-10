@@ -3,8 +3,6 @@ using System.Collections.Generic;
 #if USE_CAPSTONE
 using System.Runtime.CompilerServices;
 using System.IO;
-using Gee.External.Capstone;
-using Gee.External.Capstone.Arm64;
 using UnhollowerBaseLib;
 using Decoder = System.IntPtr;
 #else
