@@ -27,7 +27,7 @@ namespace UnhollowerRuntimeLib.XrefScans
             if (cachedAttribute == null)
             {
                 XrefScanMetadataRuntimeUtil.CallMetadataInitForMethod(methodBase);
-                return XrefScanImpl(DecoderForAddress(*(IntPtr*)(IntPtr)fieldValue), *(IntPtr*)(IntPtr)fieldValue);
+                return XrefScanImpl(DecoderForAddress(*(IntPtr*)(IntPtr)fieldValue));
             }
 
             if (cachedAttribute.XrefRangeStart == cachedAttribute.XrefRangeEnd)
@@ -47,7 +47,12 @@ namespace UnhollowerRuntimeLib.XrefScans
             return XrefScanMethodDb.ListUsers(cachedAttribute);
         }
 
-#if !USE_CAPSTONE
+#if USE_CAPSTONE
+        internal static unsafe Decoder DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
+        {
+            return codeStart;
+        }
+#else
         internal static unsafe Decoder DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
         {
             if (codeStart == IntPtr.Zero) throw new NullReferenceException(nameof(codeStart));
