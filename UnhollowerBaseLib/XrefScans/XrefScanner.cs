@@ -66,8 +66,25 @@ namespace UnhollowerRuntimeLib.XrefScans
 #endif
 
 #if USE_CAPSTONE
+        [StructLayout(LayoutKind.Explicit)]
+        internal struct XrefScanImplNativeRes
+        {
+            [FieldOffset(0)]
+            public int type;
+            [FieldOffset(4)]
+            public ulong target;
+            [FieldOffset(12)]
+            public ulong codeStart;
+        };
+
+        internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false) {
+            XrefScanImplNativeRes nativeRes = new XrefScanImplNativeRes();
+            XrefScanImplNative(decoder, skipClassCheck, ref nativeRes);
+            yield return new XrefInstance((XrefType)nativeRes.type, (IntPtr)nativeRes.target, (IntPtr)nativeRes.codeStart)
+        }
+
         [MethodImpl(MethodImplOptions.InternalCall)]
-        internal extern static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false);
+        internal extern static void XrefScanImplNative(IntPtr decoder, bool skipClassCheck, ref XrefScanImplNativeRes nativeRes);
 #else
 
         internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false)

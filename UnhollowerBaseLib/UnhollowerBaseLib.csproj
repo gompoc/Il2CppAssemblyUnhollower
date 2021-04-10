@@ -22,8 +22,4 @@
     <ItemGroup>
         <None Remove="Libs\Il2Cppmscorlib.dll" />
     </ItemGroup>
-
-    <ItemGroup>
-        <PackageReference Include="Gee.External.Capstone" Version="2.0.2" />
-    </ItemGroup>
 </Project>
