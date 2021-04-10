@@ -5,6 +5,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <Version>0.4.13.0</Version>
+        <DefineConstants>USE_CAPSTONE</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,6 +24,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Iced" Version="1.10.0" />
+        <PackageReference Include="Gee.External.Capstone" Version="2.0.2" />
     </ItemGroup>
 </Project>

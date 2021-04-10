@@ -1,7 +1,12 @@
 using System;
 using System.Collections.Generic;
+#if USE_CAPSTONE
+using Gee.External.Capstone;
+using Decoder = Gee.External.Capstone.Arm64.CapstoneArm64Disassembler;
+#else
 using Iced.Intel;
 using Decoder = Iced.Intel.Decoder;
+#endif
 
 namespace UnhollowerRuntimeLib.XrefScans
 {

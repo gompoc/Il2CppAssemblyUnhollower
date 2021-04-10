@@ -11,6 +11,7 @@ using UnhollowerBaseLib;
 using UnhollowerBaseLib.Attributes;
 using UnhollowerBaseLib.Runtime;
 using UnhollowerRuntimeLib.XrefScans;
+using System.Runtime.CompilerServices;
 using Void = Il2CppSystem.Void;
 
 namespace UnhollowerRuntimeLib
@@ -481,12 +482,12 @@ namespace UnhollowerRuntimeLib
             return ourOriginalTypeToClassMethod(type);
         }
 
-        [DllImport("kernel32", CharSet=CharSet.Ansi, ExactSpelling=true, SetLastError=true)]
+        [MethodImpl(MethodImplOptions.InternalCall)]
         static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
-        
-        [DllImport("kernel32", SetLastError=true, CharSet = CharSet.Ansi)]
+
+        [MethodImpl(MethodImplOptions.InternalCall)]
         static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)]string lpFileName);
-        
+
         private class DoHookDetour : IManagedDetour
         {
             // In some cases garbage collection of delegates can release their native function pointer too - keep all of them alive to avoid that

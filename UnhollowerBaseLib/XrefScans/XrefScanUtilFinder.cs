@@ -1,5 +1,9 @@
 using System;
+#if USE_CAPSTONE
+using Gee.External.Capstone;
+#else
 using Iced.Intel;
+#endif
 
 namespace UnhollowerRuntimeLib.XrefScans
 {
