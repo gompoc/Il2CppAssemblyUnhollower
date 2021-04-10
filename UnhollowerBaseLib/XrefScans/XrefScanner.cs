@@ -5,10 +5,8 @@ using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
 #if USE_CAPSTONE
-using System.Collections;
-using Gee.External.Capstone;
-using Gee.External.Capstone.Arm64;
-using Decoder = Gee.External.Capstone.Arm64.CapstoneArm64Disassembler;
+using System.Runtime.CompilerServices;
+using Decoder = System.IntPtr;
 #else
 using Iced.Intel;
 #endif
@@ -49,13 +47,7 @@ namespace UnhollowerRuntimeLib.XrefScans
             return XrefScanMethodDb.ListUsers(cachedAttribute);
         }
 
-#if USE_CAPSTONE
-        internal static unsafe Stream DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
-        {
-            if (codeStart == IntPtr.Zero) throw new NullReferenceException(nameof(codeStart));
-            return new UnmanagedMemoryStream((byte*)codeStart, lengthLimit, lengthLimit, FileAccess.Read);
-        }
-#else
+#if !USE_CAPSTONE
         internal static unsafe Decoder DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
         {
             if (codeStart == IntPtr.Zero) throw new NullReferenceException(nameof(codeStart));
@@ -69,153 +61,8 @@ namespace UnhollowerRuntimeLib.XrefScans
 #endif
 
 #if USE_CAPSTONE
-        internal static byte[] ReadToEnd(System.IO.Stream stream)
-        {
-            long originalPosition = 0;
-
-            if (stream.CanSeek)
-            {
-                originalPosition = stream.Position;
-                stream.Position = 0;
-            }
-
-            try
-            {
-                byte[] readBuffer = new byte[4096];
-
-                int totalBytesRead = 0;
-                int bytesRead;
-
-                while ((bytesRead = stream.Read(readBuffer, totalBytesRead, readBuffer.Length - totalBytesRead)) > 0)
-                {
-                    totalBytesRead += bytesRead;
-
-                    if (totalBytesRead == readBuffer.Length)
-                    {
-                        int nextByte = stream.ReadByte();
-                        if (nextByte != -1)
-                        {
-                            byte[] temp = new byte[readBuffer.Length * 2];
-                            Buffer.BlockCopy(readBuffer, 0, temp, 0, readBuffer.Length);
-                            Buffer.SetByte(temp, totalBytesRead, (byte)nextByte);
-                            readBuffer = temp;
-                            totalBytesRead++;
-                        }
-                    }
-                }
-
-                byte[] buffer = readBuffer;
-                if (readBuffer.Length != totalBytesRead)
-                {
-                    buffer = new byte[totalBytesRead];
-                    Buffer.BlockCopy(readBuffer, 0, buffer, 0, totalBytesRead);
-                }
-                return buffer;
-            }
-            finally
-            {
-                if (stream.CanSeek)
-                {
-                    stream.Position = originalPosition;
-                }
-            }
-        }
-
-        internal static IEnumerable<XrefInstance> XrefScanImpl(System.IO.Stream stream, IntPtr start, bool skipClassCheck = false, int lengthLimit = 1000)
-        {
-            const Arm64DisassembleMode disassembleMode = Arm64DisassembleMode.Arm;
-            using (CapstoneArm64Disassembler disassembler = CapstoneDisassembler.CreateArm64Disassembler(disassembleMode))
-            using (stream)
-            {
-                // ....
-                //
-                // Enables disassemble details, which are disabled by default, to provide more detailed information on
-                // disassembled binary code.
-                disassembler.EnableInstructionDetails = true;
-                disassembler.DisassembleSyntax = DisassembleSyntax.Intel;
-                
-
-                var binaryCode = ReadToEnd(stream);
-
-                var instructions = disassembler.Iterate(binaryCode);
-                foreach (Arm64Instruction instruction in instructions)
-                {
-                    if (!instruction.HasDetails || instruction.IsDietModeEnabled)
-                        continue;
-                    
-                    if (MatchInstructionGroup(instruction, Arm64InstructionGroupId.ARM64_GRP_RET))
-                        yield break;
-
-
-                    if (MatchInstructionGroup(instruction, Arm64InstructionGroupId.ARM64_GRP_INT))
-                        yield break;
-
-                    // Unconditional Branch that return
-                    if (MatchInstructionGroup(instruction, new[] { Arm64InstructionGroupId.ARM64_GRP_CALL, Arm64InstructionGroupId.ARM64_GRP_JUMP }))
-                    {
-                        LogSupport.Info($"{instruction.Details.Operands} operands");
-                        foreach (var operand in instruction.Details.Operands)
-                        {
-                            LogSupport.Info(operand.Type.ToString());
-                        }
-                        //if (instruction.Details.Operands)
-                        //if (targetAddress != 0)
-                        //    yield return new XrefInstance(XrefType.Method, (IntPtr)targetAddress, start);
-                        continue;
-                    }
-
-                    // Unconditional Branch
-                    if (new[] { 
-                        Arm64InstructionId.ARM64_INS_B,
-                        Arm64InstructionId.ARM64_INS_BL,
-                        Arm64InstructionId.ARM64_INS_BR,
-                        Arm64InstructionId.ARM64_INS_BLR,
-                        Arm64InstructionId.ARM64_INS_RET,
-                        Arm64InstructionId.ARM64_INS_ERET,
-                        Arm64InstructionId.ARM64_INS_DRPS
-                    }.Contains(instruction.Id))
-                        continue;
-
-                    if (instruction.Id == Arm64InstructionId.ARM64_INS_MOV)
-                    {
-                        if (instruction.Details.Operands[1].Type == Arm64OperandType.Memory)
-                        {
-                            var memory = instruction.Details.Operands[1].Memory;
-                            var isRelative = (memory.Base.Id >= Arm64RegisterId.ARM64_REG_X0 || memory.Base.Id <= Arm64RegisterId.ARM64_REG_X28);
-
-                            if (isRelative)
-                            {
-                                var movTarget = (ulong)memory.Displacement | ((ulong)memory.Displacement << 32);
-
-                                if (skipClassCheck || XrefGlobalClassFilter((IntPtr)movTarget))
-                                    yield return new XrefInstance(XrefType.Global, (IntPtr)movTarget, start);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        #region MatchInstructionGroup
-        internal static bool MatchInstructionGroup(Arm64Instruction instruction, Arm64InstructionGroupId groupId)
-        {
-            return MatchInstructionGroup(instruction.Details.Groups, groupId);
-        }
-
-        internal static bool MatchInstructionGroup(Arm64Instruction instruction, IEnumerable<Arm64InstructionGroupId> groupId)
-        {
-            return MatchInstructionGroup(instruction.Details.Groups, groupId);
-        }
-
-        internal static bool MatchInstructionGroup(IEnumerable<Arm64InstructionGroup> groups, Arm64InstructionGroupId groupId)
-        {
-            return groups.Any((g) => { return g.Id == Arm64InstructionGroupId.ARM64_GRP_RET; });
-        }
-
-        internal static bool MatchInstructionGroup(IEnumerable<Arm64InstructionGroup> groups, IEnumerable<Arm64InstructionGroupId> groupId)
-        {
-            return groups.Any((g) => { return groupId.Contains(g.Id); });
-        }
-        #endregion
+        [MethodImpl(MethodImplOptions.InternalCall)]
+        internal extern static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false);
 #else
 
         internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false)
@@ -281,12 +128,7 @@ namespace UnhollowerRuntimeLib.XrefScans
 
             return false;
         }
-#if USE_CAPSTONE
-        internal static ulong ExtractTargetAddress(in Arm64Instruction instruction)
-        {
-            return 0;
-        }
-#else
+#if !USE_CAPSTONE
         internal static ulong ExtractTargetAddress(in Instruction instruction)
         {
             switch (instruction.Op0Kind)
