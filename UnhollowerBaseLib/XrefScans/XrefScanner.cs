@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 #if USE_CAPSTONE
 using System.Runtime.CompilerServices;
-using Decoder = System.IntPtr;
+using Decoder = UnhollowerRuntimeLib.XrefScans.XrefScanner.DecoderSettings;
 #else
 using Iced.Intel;
 #endif
@@ -50,7 +50,12 @@ namespace UnhollowerRuntimeLib.XrefScans
 #if USE_CAPSTONE
         internal static unsafe Decoder DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
         {
-            return codeStart;
+            return new DecoderSettings
+            { 
+                codeStart = (ulong)codeStart,
+                transaction = CSHelper.GetAsyncId(),
+                limit = lengthLimit
+            };
         }
 #else
         internal static unsafe Decoder DecoderForAddress(IntPtr codeStart, int lengthLimit = 1000)
@@ -58,33 +63,56 @@ namespace UnhollowerRuntimeLib.XrefScans
             if (codeStart == IntPtr.Zero) throw new NullReferenceException(nameof(codeStart));
 
             var stream = new UnmanagedMemoryStream((byte*)codeStart, lengthLimit, lengthLimit, FileAccess.Read);
+            var codeReader = new StreamCodeReader(stream);
             var decoder = Decoder.Create(IntPtr.Size * 8, codeReader);
-            decoder.IP = (ulong) codeStart;
+            decoder.IP = (ulong)codeStart;
 
-            return decoder.Iterate(m_Bytes, codeStart.ToInt64());
+            return decoder;
         }
 #endif
 
 #if USE_CAPSTONE
-        [StructLayout(LayoutKind.Explicit)]
+        [StructLayout(LayoutKind.Sequential)]
         internal struct XrefScanImplNativeRes
         {
-            [FieldOffset(0)]
             public int type;
-            [FieldOffset(4)]
+            public bool complete;
             public ulong target;
-            [FieldOffset(12)]
             public ulong codeStart;
         };
 
+        [StructLayout(LayoutKind.Explicit)]
+        internal struct DecoderSettings
+        {
+            [FieldOffset(0)]
+            public ulong codeStart;
+            [FieldOffset(8)]
+            public ulong transaction;
+            [FieldOffset(16)]
+            public int limit;
+        }
+
         internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false) {
-            XrefScanImplNativeRes nativeRes = new XrefScanImplNativeRes();
-            XrefScanImplNative(decoder, skipClassCheck, ref nativeRes);
-            yield return new XrefInstance((XrefType)nativeRes.type, (IntPtr)nativeRes.target, (IntPtr)nativeRes.codeStart);
+            XrefScanImplNativeRes res;
+            do
+            {
+                res = new XrefScanImplNativeRes();
+
+                XrefScanImpl_Native(ref decoder, skipClassCheck, ref res);
+
+                if (res.complete)
+                {
+                    break;
+                }
+
+                //LogSupport.Info($"{((XrefType)res.type).ToString()} {res.complete} {string.Format("0x{0:X8} 0x{0:X8}", res.target, res.codeStart)}");
+
+                yield return new XrefInstance((XrefType)res.type, (IntPtr)res.target, (IntPtr)res.codeStart);
+            } while (!res.complete);
         }
 
         [MethodImpl(MethodImplOptions.InternalCall)]
-        internal extern static void XrefScanImplNative(IntPtr decoder, bool skipClassCheck, ref XrefScanImplNativeRes nativeRes);
+        private extern static void XrefScanImpl_Native(ref Decoder decoder, bool skipClassCheck, ref XrefScanImplNativeRes nativeRes);
 #else
 
         internal static IEnumerable<XrefInstance> XrefScanImpl(Decoder decoder, bool skipClassCheck = false)

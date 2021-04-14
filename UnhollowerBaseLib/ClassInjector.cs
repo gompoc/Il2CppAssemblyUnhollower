@@ -449,7 +449,7 @@ namespace UnhollowerRuntimeLib
             var classFromTypeEntryPoint = GetProcAddress(lib, nameof(IL2CPP.il2cpp_class_from_il2cpp_type));
             LogSupport.Trace($"il2cpp_class_from_il2cpp_type entry address: {classFromTypeEntryPoint}");
 
-            var targetMethod = XrefScannerLowLevel.JumpTargets(classFromTypeEntryPoint).Single();
+            var targetMethod = XrefScannerLowLevel.JumpTargets(classFromTypeEntryPoint).FirstOrDefault();
             LogSupport.Trace($"Xref scan target: {targetMethod}");
 
             if (targetMethod == IntPtr.Zero)
@@ -483,7 +483,7 @@ namespace UnhollowerRuntimeLib
         }
 
         [MethodImpl(MethodImplOptions.InternalCall)]
-        static extern IntPtr GetProcAddress(IntPtr hModule, string procName);
+        static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string procName);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         static extern IntPtr LoadLibrary([MarshalAs(UnmanagedType.LPStr)]string lpFileName);
