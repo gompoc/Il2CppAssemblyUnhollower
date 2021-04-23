@@ -35,10 +35,16 @@ namespace AssemblyUnhollower.Passes
                                 ? assemblyContext.Imports.IntPtr
                                 : assemblyContext.RewriteTypeRef(field.FieldType));
                         
-                        newField.Offset = Convert.ToInt32(
-                            (string) field.CustomAttributes
+                        try
+                        {
+                            newField.Offset = Convert.ToInt32(
+                            (string)field.CustomAttributes
                                 .Single(it => it.AttributeType.Name == "FieldOffsetAttribute")
                                 .Fields.Single().Argument.Value, 16);
+                        } catch (Exception e)
+                        {
+                            UnhollowerBaseLib.LogSupport.Error(e.Message);
+                        }
                         
                         newType.Fields.Add(newField);
                     }
