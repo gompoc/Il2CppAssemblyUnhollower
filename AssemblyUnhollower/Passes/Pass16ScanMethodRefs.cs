@@ -42,6 +42,9 @@ namespace AssemblyUnhollower.Passes
                 gameAssemblyPtr = (IntPtr) fileStartPtr;
             }
 #endif
+            
+            context.MethodStartAddresses.Sort();
+
             var methods = context.Assemblies.SelectMany(it => it.Types).SelectMany(it => it.Methods);
             UnhollowerBaseLib.LogSupport.Error($"Scanning {methods.Count().ToString()} methods");
             int i = 0;

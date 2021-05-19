@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using AssemblyUnhollower.Extensions;
 using AssemblyUnhollower.Passes;
@@ -45,7 +46,12 @@ namespace AssemblyUnhollower.Contexts
 
             var newMethod = new MethodDefinition("", AdjustAttributes(originalMethod.Attributes), declaringType.AssemblyContext.Imports.Void);
             NewMethod = newMethod;
-            
+
+            if (originalMethod.CustomAttributes.Any(x => x.AttributeType.FullName == typeof(ExtensionAttribute).FullName))
+            {
+                newMethod.CustomAttributes.Add(new CustomAttribute(declaringType.AssemblyContext.Imports.ExtensionAttributeCtor));
+            }
+
             if (originalMethod.HasGenericParameters)
             {
                 var genericParams = originalMethod.GenericParameters;
@@ -63,6 +69,8 @@ namespace AssemblyUnhollower.Contexts
 
             FileOffset = originalMethod.ExtractOffset();
             Rva = originalMethod.ExtractRva();
+            if (FileOffset != 0)
+                declaringType.AssemblyContext.GlobalContext.MethodStartAddresses.Add(FileOffset);
         }
 
         public void CtorPhase2()
@@ -137,10 +145,14 @@ namespace AssemblyUnhollower.Contexts
 
         private string UnmangleMethodName()
         {
-            if (DeclaringType.AssemblyContext.GlobalContext.Options.PassthroughNames)
-                return OriginalMethod.Name;
-            
             var method = OriginalMethod;
+            
+            if (method.Name == "GetType" && method.Parameters.Count == 0)
+                return "GetIl2CppType";
+            
+            if (DeclaringType.AssemblyContext.GlobalContext.Options.PassthroughNames)
+                return method.Name;
+            
             if (method.Name == ".ctor")
                 return ".ctor";
             
@@ -150,9 +162,6 @@ namespace AssemblyUnhollower.Contexts
             if (method.Name.IsInvalidInSource())
                 return method.Name.FilterInvalidInSourceChars();
 
-            if (method.Name == "GetType" && method.Parameters.Count == 0)
-                return "GetIl2CppType";
-            
             return method.Name;
         }
 
