@@ -5,6 +5,7 @@
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
         <Version>0.4.15.1</Version>
+        <DefineConstants>USE_CAPSTONE</DefineConstants>
     </PropertyGroup>
 
     <ItemGroup>

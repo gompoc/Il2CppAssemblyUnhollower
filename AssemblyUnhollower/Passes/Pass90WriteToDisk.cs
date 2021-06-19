@@ -1,6 +1,7 @@
 using System.Linq;
 using System.Threading.Tasks;
 using AssemblyUnhollower.Contexts;
+using UnhollowerBaseLib;
 
 namespace AssemblyUnhollower.Passes
 {
@@ -8,11 +9,14 @@ namespace AssemblyUnhollower.Passes
     {
         public static void DoPass(RewriteGlobalContext context, UnhollowerOptions options)
         {
-            var tasks = context.Assemblies.Where(it => !options.AdditionalAssembliesBlacklist.Contains(it.NewAssembly.Name.Name)).Select(assemblyContext => Task.Run(() => {
+            var tasks = context.Assemblies.Where(it =>
+                !options.AdditionalAssembliesBlacklist.Contains(it.NewAssembly.Name.Name));
+            
+            foreach (var assemblyContext in tasks)
+            {
+                LogSupport.Info($"writing {options.OutputDir}/{assemblyContext.NewAssembly.Name.Name}.dll");
                 assemblyContext.NewAssembly.Write(options.OutputDir + "/" + assemblyContext.NewAssembly.Name.Name + ".dll");
-            })).ToArray();
-
-            Task.WaitAll(tasks);
+            }
         }
     }
 }
