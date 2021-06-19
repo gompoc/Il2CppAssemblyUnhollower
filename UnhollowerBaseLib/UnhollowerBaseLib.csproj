@@ -4,8 +4,7 @@
         <TargetFrameworks>net4.7.2;netstandard2.1</TargetFrameworks>
         <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
         <LangVersion>latest</LangVersion>
-        <Version>0.4.14.0</Version>
-        <DefineConstants>USE_CAPSTONE</DefineConstants>
+        <Version>0.4.15.1</Version>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,7 +22,11 @@
         <None Remove="Libs\Il2Cppmscorlib.dll" />
     </ItemGroup>
 
-    <ItemGroup>
-      <PackageReference Include="Iced" Version="1.11.0" />
+    <ItemGroup>
+        <PackageReference Include="Iced" Version="1.10.0" />
+        <PackageReference Include="IsExternalInit" Version="1.0.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
     </ItemGroup>
 </Project>

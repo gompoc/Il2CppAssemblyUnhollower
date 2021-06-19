@@ -10,6 +10,8 @@ using System.Threading;
 using UnhollowerBaseLib;
 using UnhollowerBaseLib.Attributes;
 using UnhollowerBaseLib.Runtime;
+using UnhollowerBaseLib.Runtime.VersionSpecific.Class;
+using UnhollowerBaseLib.Runtime.VersionSpecific.Image;
 using UnhollowerRuntimeLib.XrefScans;
 using System.Runtime.CompilerServices;
 using Void = Il2CppSystem.Void;
@@ -18,26 +20,27 @@ namespace UnhollowerRuntimeLib
 {
     public unsafe static class ClassInjector
     {
-        private static readonly Il2CppAssembly* FakeAssembly;
-        private static readonly Il2CppImage* FakeImage;
+        private static Il2CppAssembly* FakeAssembly;
+        private static INativeImageStruct FakeImage;
 
-        private static readonly HashSet<string> InjectedTypes = new HashSet<string>(); 
+        /// <summary> type.FullName </summary>
+        private static readonly HashSet<string> InjectedTypes = new HashSet<string>();
+        /// <summary> namespace, class, image, pointer </summary>
+        private static readonly Dictionary<(string, string, IntPtr), IntPtr> ClassFromNameDictionary = new Dictionary<(string, string, IntPtr), IntPtr>();
 
-        static ClassInjector()
+        static void CreateFakeAssembly()
         {
             FakeAssembly = (Il2CppAssembly*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppAssembly>());
-            FakeImage = (Il2CppImage*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppImage>());
+            FakeImage = UnityVersionHandler.NewImage(); //(Il2CppImage*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppImage>());
 
             *FakeAssembly = default;
-            *FakeImage = default;
-
-            FakeAssembly->image = FakeImage;
             FakeAssembly->aname.name = Marshal.StringToHGlobalAnsi("InjectedMonoTypes");
-            
-            FakeImage->assembly = FakeAssembly;
-            FakeImage->dynamic = 1;
-            FakeImage->name = FakeAssembly->aname.name;
-            FakeImage->nameNoExt = FakeImage->name;
+
+            FakeImage.Assembly = FakeAssembly;
+            FakeImage.Dynamic = 1;
+            FakeImage.Name = FakeAssembly->aname.name;
+            if (FakeImage.HasNameNoExt)
+                FakeImage.NameNoExt = FakeImage.Name;
         }
 
         public static void ProcessNewObject(Il2CppObjectBase obj)
@@ -67,15 +70,15 @@ namespace UnhollowerRuntimeLib
             *(IntPtr*) targetGcHandlePointer = handleAsPointer;
         }
 
-        public static void RegisterTypeInIl2Cpp<T>() where T : class => RegisterTypeInIl2Cpp<T>(true);
-        public static void RegisterTypeInIl2Cpp<T>(bool logSuccess) where T : class
+        public static void RegisterTypeInIl2Cpp<T>() where T : class => RegisterTypeInIl2Cpp(typeof(T), true);
+        public static void RegisterTypeInIl2Cpp<T>(bool logSuccess) where T : class => RegisterTypeInIl2Cpp(typeof(T), logSuccess);
+        public static void RegisterTypeInIl2Cpp(Type type) => RegisterTypeInIl2Cpp(type, true);
+        public static void RegisterTypeInIl2Cpp(Type type, bool logSuccess)
         {
-            var type = typeof(T);
-            
             if(type.IsGenericType || type.IsGenericTypeDefinition)
                 throw new ArgumentException($"Type {type} is generic and can't be used in il2cpp");
             
-            var currentPointer = Il2CppClassPointerStore<T>.NativeClassPtr;
+            var currentPointer = ReadClassPointerForType(type);
             if (currentPointer != IntPtr.Zero)
                 throw new ArgumentException($"Type {type} is already registered in il2cpp");
 
@@ -84,10 +87,10 @@ namespace UnhollowerRuntimeLib
             if (baseClassPointer == null)
                 throw new ArgumentException($"Base class {baseType} of class {type} is not registered in il2cpp");
             
-            if ((baseClassPointer.Bitfield1 & ClassBitfield1.valuetype) != 0 || (baseClassPointer.Bitfield1 & ClassBitfield1.enumtype) != 0)
+            if (baseClassPointer.ValueType || baseClassPointer.EnumType)
                 throw new ArgumentException($"Base class {baseType} is value type and can't be inherited from");
             
-            if ((baseClassPointer.Bitfield1 & ClassBitfield1.is_generic) != 0)
+            if (baseClassPointer.IsGeneric)
                 throw new ArgumentException($"Base class {baseType} is generic and can't be inherited from");
             
             if ((baseClassPointer.Flags & Il2CppClassAttributes.TYPE_ATTRIBUTE_SEALED) != 0)
@@ -97,22 +100,27 @@ namespace UnhollowerRuntimeLib
                 throw new ArgumentException($"Base class {baseType} is an interface and can't be inherited from");
             
             lock (InjectedTypes)
-                if (!InjectedTypes.Add(typeof(T).FullName))
-                    throw new ArgumentException($"Type with FullName {typeof(T).FullName} is already injected. Don't inject the same type twice, or use a different namespace");
-            
-            if (ourOriginalTypeToClassMethod == null)
-                HookClassFromType();
+                if (!InjectedTypes.Add(type.FullName))
+                    throw new ArgumentException($"Type with FullName {type.FullName} is already injected. Don't inject the same type twice, or use a different namespace");
+
+            if (ourOriginalTypeToClassMethod == null) HookClassFromType();
+            if (originalClassFromNameMethod == null) HookClassFromName();
+            if (FakeAssembly == null) CreateFakeAssembly();
 
             var classPointer = UnityVersionHandler.NewClass(baseClassPointer.VtableCount);
 
-            classPointer.Image = FakeImage;
+            classPointer.Image = FakeImage.ImagePointer;
             classPointer.Parent = baseClassPointer.ClassPointer;
             classPointer.ElementClass = classPointer.Class = classPointer.CastClass = classPointer.ClassPointer;
             classPointer.NativeSize = -1;
             classPointer.ActualSize = classPointer.InstanceSize = baseClassPointer.InstanceSize + (uint) IntPtr.Size;
-            classPointer.Bitfield1 = ClassBitfield1.initialized | ClassBitfield1.initialized_and_no_error |
-                                             ClassBitfield1.size_inited;
-            classPointer.Bitfield2 = ClassBitfield2.has_finalize | ClassBitfield2.is_vtable_initialized;
+
+            classPointer.Initialized = true;
+            classPointer.InitializedAndNoError = true;
+            classPointer.SizeInited = true;
+            classPointer.HasFinalize = true;
+            classPointer.IsVtableInitialized = true;
+            
             classPointer.Name = Marshal.StringToHGlobalAnsi(type.Name);
             classPointer.Namespace = Marshal.StringToHGlobalAnsi(type.Namespace);
             
@@ -129,6 +137,7 @@ namespace UnhollowerRuntimeLib
             classPointer.Methods = methodPointerArray;
 
             methodPointerArray[0] = ConvertStaticMethod(FinalizeDelegate, "Finalize", classPointer);
+            var finalizeMethod = UnityVersionHandler.Wrap(methodPointerArray[0]);
             methodPointerArray[1] = ConvertStaticMethod(CreateEmptyCtor(type), ".ctor", classPointer);
             for (var i = 0; i < eligibleMethods.Length; i++)
             {
@@ -142,10 +151,11 @@ namespace UnhollowerRuntimeLib
             for (var i = 0; i < classPointer.VtableCount; i++)
             {
                 vTablePointer[i] = baseVTablePointer[i];
-                if (Marshal.PtrToStringAnsi(vTablePointer[i].method->name) == "Finalize") // slot number is not static
+                var vTableMethod = UnityVersionHandler.Wrap(vTablePointer[i].method);
+                if (Marshal.PtrToStringAnsi(vTableMethod.Name) == "Finalize") // slot number is not static
                 {
                     vTablePointer[i].method = methodPointerArray[0];
-                    vTablePointer[i].methodPtr = methodPointerArray[0]->methodPointer;
+                    vTablePointer[i].methodPtr = finalizeMethod.MethodPointer;
                 }
             }
 
@@ -154,9 +164,25 @@ namespace UnhollowerRuntimeLib
             classPointer.ByValArg.data = classPointer.ThisArg.data = (IntPtr) newCounter;
 
             RuntimeSpecificsStore.SetClassInfo(classPointer.Pointer, true, true);
-            Il2CppClassPointerStore<T>.NativeClassPtr = classPointer.Pointer;
+            WriteClassPointerForType(type,classPointer.Pointer);
 
-            if (logSuccess) LogSupport.Info($"Registered mono type {typeof(T)} in il2cpp domain");
+            AddToClassFromNameDictionary(type,classPointer.Pointer);
+
+            if (logSuccess) LogSupport.Info($"Registered mono type {type} in il2cpp domain");
+        }
+
+        private static void AddToClassFromNameDictionary<T>(IntPtr typePointer) where T : class => AddToClassFromNameDictionary(typeof(T), typePointer);
+        private static void AddToClassFromNameDictionary(Type type, IntPtr typePointer)
+        {
+            string klass = type.Name;
+            if (klass == null) return;
+            string namespaze = type.Namespace ?? string.Empty;
+            ClassInjectionAssemblyTargetAttribute attribute = Attribute.GetCustomAttribute(type, typeof(ClassInjectionAssemblyTargetAttribute)) as ClassInjectionAssemblyTargetAttribute;
+
+            foreach (IntPtr image in ((attribute is null) ? IL2CPP.GetIl2CppImages() : attribute.GetImagePointers()) )
+            {
+                ClassFromNameDictionary.Add((namespaze, klass, image), typePointer);
+            }
         }
 
         internal static IntPtr ReadClassPointerForType(Type type)
@@ -218,54 +244,53 @@ namespace UnhollowerRuntimeLib
         
         private static Il2CppMethodInfo* ConvertStaticMethod(VoidCtorDelegate voidCtor, string methodName, INativeClassStruct declaringClass)
         {
-            var converted = (Il2CppMethodInfo*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppMethodInfo>());
-            *converted = default;
-            converted->name = Marshal.StringToHGlobalAnsi(methodName);
-            converted->klass = declaringClass.ClassPointer;
+            var converted = UnityVersionHandler.NewMethod();
+            converted.Name = Marshal.StringToHGlobalAnsi(methodName);
+            converted.Class = declaringClass.ClassPointer;
 
-            converted->invoker_method = Marshal.GetFunctionPointerForDelegate(new InvokerDelegate(StaticVoidIntPtrInvoker));
-            converted->methodPointer = Marshal.GetFunctionPointerForDelegate(voidCtor);
-            converted->slot = ushort.MaxValue;
-            converted->return_type = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(Il2CppClassPointerStore<Void>.NativeClassPtr);
+            converted.InvokerMethod = Marshal.GetFunctionPointerForDelegate(new InvokerDelegate(StaticVoidIntPtrInvoker));
+            converted.MethodPointer = Marshal.GetFunctionPointerForDelegate(voidCtor);
+            converted.Slot = ushort.MaxValue;
+            converted.ReturnType = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(Il2CppClassPointerStore<Void>.NativeClassPtr);
 
-            converted->flags = Il2CppMethodFlags.METHOD_ATTRIBUTE_PUBLIC |
+            converted.Flags = Il2CppMethodFlags.METHOD_ATTRIBUTE_PUBLIC |
                                Il2CppMethodFlags.METHOD_ATTRIBUTE_HIDE_BY_SIG | Il2CppMethodFlags.METHOD_ATTRIBUTE_SPECIAL_NAME | Il2CppMethodFlags.METHOD_ATTRIBUTE_RT_SPECIAL_NAME;
 
-            return converted;
+            return converted.MethodInfoPointer;
         }
 
         private static Il2CppMethodInfo* ConvertMethodInfo(MethodInfo monoMethod, INativeClassStruct declaringClass)
         {
-            var converted = (Il2CppMethodInfo*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppMethodInfo>());
-            *converted = default;
-            converted->name = Marshal.StringToHGlobalAnsi(monoMethod.Name);
-            converted->klass = declaringClass.ClassPointer;
+            var converted = UnityVersionHandler.NewMethod();
+            converted.Name = Marshal.StringToHGlobalAnsi(monoMethod.Name);
+            converted.Class = declaringClass.ClassPointer;
 
             var parameters = monoMethod.GetParameters();
             if (parameters.Length > 0)
             {
-                converted->parameters_count = (byte) parameters.Length;
-                var paramsArray = (Il2CppParameterInfo*) Marshal.AllocHGlobal(Marshal.SizeOf<Il2CppParameterInfo>() * parameters.Length);
-                converted->parameters = paramsArray;
+                converted.ParametersCount = (byte) parameters.Length;
+                var paramsArray = UnityVersionHandler.NewMethodParameterArray(parameters.Length);
+                converted.Parameters = paramsArray[0];
                 for (var i = 0; i < parameters.Length; i++)
                 {
                     var parameterInfo = parameters[i];
-                    paramsArray[i].name = Marshal.StringToHGlobalAnsi(parameterInfo.Name);
-                    paramsArray[i].position = i;
-                    paramsArray[i].token = 0;
-                    paramsArray[i].parameter_type = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(ReadClassPointerForType(parameterInfo.ParameterType));
+                    var param = UnityVersionHandler.Wrap(paramsArray[i]);
+                    param.Name = Marshal.StringToHGlobalAnsi(parameterInfo.Name);
+                    param.Position = i;
+                    param.Token = 0;
+                    param.ParameterType = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(ReadClassPointerForType(parameterInfo.ParameterType));
                 }
             }
 
-            converted->invoker_method = Marshal.GetFunctionPointerForDelegate(GetOrCreateInvoker(monoMethod));
-            converted->methodPointer = Marshal.GetFunctionPointerForDelegate(GetOrCreateTrampoline(monoMethod));
-            converted->slot = ushort.MaxValue;
-            converted->return_type = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(ReadClassPointerForType(monoMethod.ReturnType));
+            converted.InvokerMethod = Marshal.GetFunctionPointerForDelegate(GetOrCreateInvoker(monoMethod));
+            converted.MethodPointer = Marshal.GetFunctionPointerForDelegate(GetOrCreateTrampoline(monoMethod));
+            converted.Slot = ushort.MaxValue;
+            converted.ReturnType = (Il2CppTypeStruct*) IL2CPP.il2cpp_class_get_type(ReadClassPointerForType(monoMethod.ReturnType));
 
-            converted->flags = Il2CppMethodFlags.METHOD_ATTRIBUTE_PUBLIC |
+            converted.Flags = Il2CppMethodFlags.METHOD_ATTRIBUTE_PUBLIC |
                                Il2CppMethodFlags.METHOD_ATTRIBUTE_HIDE_BY_SIG;
 
-            return converted;
+            return converted.MethodInfoPointer;
         }
 
         private static VoidCtorDelegate CreateEmptyCtor(Type targetType)
@@ -494,6 +519,49 @@ namespace UnhollowerRuntimeLib
             return ourOriginalTypeToClassMethod(type);
         }
 
+        #region Class From Name Patch
+        [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
+        private delegate IntPtr ClassFromNameDelegate(IntPtr intPtr, IntPtr str1, IntPtr str2);
+
+        private static ClassFromNameDelegate originalClassFromNameMethod;
+        private static readonly ClassFromNameDelegate hookedClassFromName = new ClassFromNameDelegate(ClassFromNamePatch);
+
+        private static void HookClassFromName()
+        {
+            var lib = LoadLibrary("GameAssembly.dll");
+            var classFromNameEntryPoint = GetProcAddress(lib, nameof(IL2CPP.il2cpp_class_from_name));
+            LogSupport.Trace($"il2cpp_class_from_name entry address: {classFromNameEntryPoint}");
+
+            if (classFromNameEntryPoint == IntPtr.Zero) return;
+
+            originalClassFromNameMethod = Detour.Detour(classFromNameEntryPoint, hookedClassFromName);
+            LogSupport.Trace("il2cpp_class_from_name patched");
+        }
+
+        private static IntPtr ClassFromNamePatch(IntPtr param1, IntPtr param2, IntPtr param3)
+        {
+            try
+            {
+                // possible race: other threads can try resolving classes after the hook is installed but before delegate field is set
+                while (originalClassFromNameMethod == null) Thread.Sleep(1);
+                IntPtr intPtr = originalClassFromNameMethod.Invoke(param1, param2, param3);
+                
+                if (intPtr == IntPtr.Zero)
+                {
+                    string namespaze = Marshal.PtrToStringAnsi(param2);
+                    string klass = Marshal.PtrToStringAnsi(param3);
+                    ClassFromNameDictionary.TryGetValue((namespaze, klass, param1),out intPtr);
+                }
+
+                return intPtr;
+            }
+            catch (Exception e)
+            {
+                LogSupport.Error(e.Message);
+                return IntPtr.Zero;
+            }
+        }
+        #endregion
         [MethodImpl(MethodImplOptions.InternalCall)]
         static extern IntPtr GetProcAddress(IntPtr hModule, [MarshalAs(UnmanagedType.LPStr)] string procName);
 
