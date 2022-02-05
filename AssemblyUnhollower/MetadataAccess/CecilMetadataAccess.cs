@@ -5,10 +5,10 @@ namespace AssemblyUnhollower.MetadataAccess
 {
     public class CecilMetadataAccess : IIl2CppMetadataAccess
     {
-        private readonly Resolver myAssemblyResolver = new();
-        private readonly List<AssemblyDefinition> myAssemblies = new();
-        private readonly Dictionary<string, AssemblyDefinition> myAssembliesByName = new();
-        private readonly Dictionary<(string AssemblyName, string TypeName), TypeDefinition> myTypesByName = new();
+        private readonly Resolver myAssemblyResolver = new Resolver();
+        private readonly List<AssemblyDefinition> myAssemblies = new List<AssemblyDefinition>();
+        private readonly Dictionary<string, AssemblyDefinition> myAssembliesByName = new Dictionary<string, AssemblyDefinition>();
+        private readonly Dictionary<(string AssemblyName, string TypeName), TypeDefinition> myTypesByName = new Dictionary<(string AssemblyName, string TypeName), TypeDefinition>();
         
         public CecilMetadataAccess(IEnumerable<string> assemblyPaths)
         {

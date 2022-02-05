@@ -6,7 +6,7 @@ namespace AssemblyUnhollower.MetadataAccess
 {
     public class NullMetadataAccess : IMetadataAccess
     {
-        public static readonly NullMetadataAccess Instance = new();
+        public static readonly NullMetadataAccess Instance = new NullMetadataAccess();
         
         public void Dispose()
         {

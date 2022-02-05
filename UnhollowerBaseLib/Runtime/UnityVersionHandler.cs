@@ -24,10 +24,10 @@ namespace UnhollowerBaseLib.Runtime
     public static class UnityVersionHandler
     {
         private static readonly Type[] InterfacesOfInterest;
-        private static readonly Dictionary<Type, List<(Version Version, object Handler)>> VersionedHandlers = new ();
-        private static readonly Dictionary<Type, object> Handlers = new();
+        private static readonly Dictionary<Type, List<(Version Version, object Handler)>> VersionedHandlers = new Dictionary<Type, List<(Version Version, object Handler)>>();
+        private static readonly Dictionary<Type, object> Handlers = new Dictionary<Type, object>();
 
-        private static Version UnityVersion = new(2018, 4, 20);
+        private static Version UnityVersion = new Version(2018, 4, 20);
 
         static UnityVersionHandler()
         {
@@ -35,7 +35,7 @@ namespace UnhollowerBaseLib.Runtime
             var interfacesOfInterest = allTypes.Where(t => t.IsInterface && typeof(INativeStructHandler).IsAssignableFrom(t) && t != typeof(INativeStructHandler)).ToArray();
             InterfacesOfInterest = interfacesOfInterest;
             
-            foreach (var i in interfacesOfInterest) VersionedHandlers[i] = new();
+            foreach (var i in interfacesOfInterest) VersionedHandlers[i] = new List<(Version Version, object Handler)>();
             
             foreach (var handlerImpl in allTypes.Where(t => !t.IsAbstract && interfacesOfInterest.Any(i => i.IsAssignableFrom(t))))
             foreach (var startVersion in handlerImpl.GetCustomAttributes<ApplicableToUnityVersionsSinceAttribute>())

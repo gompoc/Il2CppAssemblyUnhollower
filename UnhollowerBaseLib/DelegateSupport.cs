@@ -210,7 +210,7 @@ namespace UnhollowerRuntimeLib
                 throw new ArgumentException($"Type {typeof(TIl2Cpp)} has uninitialized class pointer");
             
             if (Il2CppClassPointerStore<Il2CppToMonoDelegateReference>.NativeClassPtr == IntPtr.Zero)
-                ClassInjector.RegisterTypeInIl2Cpp<Il2CppToMonoDelegateReference>();
+                ClassInjector.RegisterTypeInIl2Cpp<Il2CppToMonoDelegateReference>(true);
 
             var il2CppDelegateType = Il2CppSystem.Type.internal_from_handle(IL2CPP.il2cpp_class_get_type(classTypePtr));
             var nativeDelegateInvokeMethod = il2CppDelegateType.GetMethod("Invoke");

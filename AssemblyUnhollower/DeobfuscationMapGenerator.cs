@@ -274,7 +274,7 @@ namespace AssemblyUnhollower
                     for (var i = 0; i < agi.GenericArguments.Count; i++)
                         Accumulate(TypeMatchWeight(agi.GenericArguments[i], bgi.GenericArguments[i], options));
                     return runningSum * 5;
-                case GenericParameter:
+                case GenericParameter c:
                     if (!(b is GenericParameter))
                         return -1;
                     return 5;
