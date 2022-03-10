@@ -107,7 +107,19 @@ namespace UnhollowerRuntimeLib.XrefScans
 
                 //LogSupport.Info($"{((XrefType)res.type).ToString()} {res.complete} {string.Format("0x{0:X8} 0x{0:X8}", res.target, res.codeStart)}");
 
-                yield return new XrefInstance((XrefType)res.type, (IntPtr)res.target, (IntPtr)res.codeStart);
+                if(((XrefType)res.type) == XrefType.Global)
+                {
+                    if (skipClassCheck || XrefGlobalClassFilter((IntPtr)res.target))
+                    {
+                        var hit = new XrefInstance((XrefType)res.type, (IntPtr)res.target, (IntPtr)res.codeStart);
+                        yield return hit;
+                    }
+                }
+                else
+                {
+                    yield return new XrefInstance((XrefType)res.type, (IntPtr)res.target, (IntPtr)res.codeStart);
+                }
+                
             } while (!res.complete);
         }
 
